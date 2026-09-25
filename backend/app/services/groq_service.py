@@ -421,6 +421,210 @@ Based on the above, what role does `{file_path}` play in the overall architectur
         return await self.complete(system, user, max_tokens=800)
 
 
+    # ── Phase 5: Onboarding prompts ───────────────────────────────────────────
+
+    async def onboarding_start(
+        self,
+        project_name: str,
+        total_files: int,
+        languages: dict[str, int],
+        components: list[str],
+        dep_sample: dict[str, list[str]],
+        setup_hint: str,
+    ) -> str:
+        """Generate a comprehensive onboarding overview for a new developer."""
+        system = (
+            "You are an expert software engineer onboarding a new developer to an unfamiliar repository. "
+            "Be helpful, clear, and grounded in the evidence provided. "
+            "Clearly distinguish detected facts from reasonable inferences. "
+            "Do NOT invent technologies, files, or functionality not supported by the data. "
+            "Use Markdown with clear section headings."
+        )
+        lang_lines = "\n".join(f"  - {k}: {v} file(s)" for k, v in sorted(languages.items(), key=lambda x: -x[1]))
+        comp_lines = "\n".join(f"  - {c}" for c in components[:15]) or "  (none detected)"
+        dep_lines = "\n".join(
+            f"  - `{src}` → {', '.join(f'`{d}`' for d in deps[:3])}"
+            for src, deps in list(dep_sample.items())[:8]
+        ) or "  (no dependency data)"
+
+        user = f"""A new developer just joined the team and needs to understand this repository.
+
+**Project name:** {project_name}
+**Total files:** {total_files}
+**Technology hint:** {setup_hint or "unknown"}
+**Language breakdown:**
+{lang_lines or "  (no language data)"}
+**Detected components/modules:**
+{comp_lines}
+**Sample dependency relationships:**
+{dep_lines}
+
+Generate a complete developer onboarding guide with these exact sections:
+
+## What This Project Is
+A high-level description of the project's apparent purpose, based on the evidence above.
+
+## Technology Stack
+The detected technologies, languages, and frameworks.
+
+## Project Structure
+Important files and directories a developer should know about.
+
+## Architecture
+The apparent architectural pattern (e.g., component-based React SPA, REST API, etc.).
+
+## Important Components
+The key components/modules and what each one does.
+
+## How the Project Fits Together
+Explain the major dependency relationships in plain English.
+
+## Where Should I Start?
+Suggest a logical starting point — which file(s) to read first and why.
+
+Distinguish clearly between what was detected vs. what is inferred.
+Do NOT invent file names, libraries, or patterns not supported by the data.
+"""
+        return await self.complete(system, user, max_tokens=1400)
+
+    async def architecture_overview(
+        self,
+        project_name: str,
+        languages: dict[str, int],
+        components: list[str],
+        dep_sample: dict[str, list[str]],
+        total_files: int,
+    ) -> str:
+        """Explain the apparent project architecture."""
+        system = (
+            "You are a software architect explaining how a project is structured to a developer. "
+            "Be precise and grounded in the provided data. Use Markdown."
+        )
+        lang_lines = "\n".join(f"  - {k}: {v} file(s)" for k, v in sorted(languages.items(), key=lambda x: -x[1]))
+        comp_lines = "\n".join(f"  - {c}" for c in components[:15]) or "  (none detected)"
+        dep_lines = "\n".join(
+            f"  - `{src}` → {', '.join(f'`{d}`' for d in deps[:3])}"
+            for src, deps in list(dep_sample.items())[:10]
+        ) or "  (no dependency data)"
+        user = f"""Explain the architecture of `{project_name}`.
+
+**Files:** {total_files}
+**Languages:**
+{lang_lines or "  (no data)"}
+**Detected components:**
+{comp_lines}
+**Dependency relationships (sample):**
+{dep_lines}
+
+Provide:
+
+## Architectural Pattern
+What is the overall architectural style? (e.g., MVC, component-based, microservices, monolith)
+
+## Layer Breakdown
+Describe the logical layers (e.g., UI, API, data, utilities).
+
+## Data Flow
+How does data flow through the system from input to output?
+
+## Module Responsibilities
+What does each detected component/module own?
+
+## Coupling and Cohesion
+Are components loosely or tightly coupled? Any notable patterns?
+
+Only describe what the data supports. Do not invent technologies.
+"""
+        return await self.complete(system, user, max_tokens=1000)
+
+    async def setup_guidance(
+        self,
+        project_name: str,
+        languages: dict[str, int],
+        setup_contents: dict[str, str],
+    ) -> str:
+        """Generate setup guidance from actual project setup files."""
+        system = (
+            "You are a senior developer writing a clear setup guide for a new team member. "
+            "Use only the provided file content — do not invent commands or steps. "
+            "If a file is not present, say so. Use Markdown."
+        )
+        files_text = ""
+        for fname, content in setup_contents.items():
+            files_text += f"\n\n### `{fname}`\n```\n{content}\n```"
+
+        if not files_text:
+            files_text = "\n\n*(No setup files were found in the project root.)*"
+
+        lang_list = ", ".join(sorted(languages.keys())) or "unknown"
+        user = f"""Generate setup guidance for `{project_name}`.
+
+**Detected languages:** {lang_list}
+**Available setup files:**{files_text}
+
+Provide:
+
+## Prerequisites
+List what needs to be installed first, based on the detected language/files.
+
+## Installation Steps
+Step-by-step instructions derived directly from the files above.
+If no setup files are available, provide general guidance for the detected language stack.
+
+## Running the Project
+How to start the development server or run the application, based on available scripts.
+
+## Environment Configuration
+Any environment variables or config files that need to be set up.
+
+## Common Pitfalls
+Any obvious setup issues based on the project structure.
+
+Base every step on what the files actually say. Do not make up commands.
+"""
+        return await self.complete(system, user, max_tokens=1000)
+
+    async def beginner_tasks(
+        self,
+        project_name: str,
+        languages: dict[str, int],
+        components: list[str],
+        dep_sample: dict[str, list[str]],
+    ) -> str:
+        """Suggest beginner tasks grounded in actual project files."""
+        system = (
+            "You are an engineering mentor creating a learning plan for a junior developer. "
+            "Every task MUST reference a real component or file from the data provided. "
+            "Do NOT invent files or components. Use Markdown."
+        )
+        comp_lines = "\n".join(f"  - {c}" for c in components[:15]) or "  (none detected)"
+        lang_list = ", ".join(sorted(languages.keys())) or "unknown"
+        dep_lines = "\n".join(
+            f"  - `{src}` → {', '.join(f'`{d}`' for d in deps[:3])}"
+            for src, deps in list(dep_sample.items())[:8]
+        ) or "  (no data)"
+        user = f"""Create beginner learning tasks for `{project_name}`.
+
+**Language(s):** {lang_list}
+**Detected components (use ONLY these):**
+{comp_lines}
+**Dependency relationships:**
+{dep_lines}
+
+Generate 5–7 beginner-friendly tasks. For each task provide:
+
+### Task N: [Title]
+- **Target:** The specific file or component from the list above
+- **Goal:** What the developer will understand after completing this task
+- **Steps:** 2–4 concrete exploration steps (read, trace, annotate)
+- **Difficulty:** Beginner
+
+Only reference components and files that appear in the detected list above.
+Do NOT invent fictional file names.
+"""
+        return await self.complete(system, user, max_tokens=1200)
+
+
 # ── Module-level singleton (re-created each request so key changes are picked up) ──
 def get_groq_service() -> GroqService:
     return GroqService()

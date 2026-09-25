@@ -79,6 +79,26 @@ body {
   transition-duration: 0ms !important;
 }
 
+/* ─── Phase 5: Accessibility voice overrides ────────────────────────────────── */
+
+/* Larger microphone and speaker controls in a11y mode */
+.a11y-mode [aria-label*="voice"],
+.a11y-mode [aria-label*="microphone"],
+.a11y-mode [aria-label*="recording"],
+.a11y-mode [aria-label*="aloud"],
+.a11y-mode [aria-label*="Read"],
+.a11y-mode [aria-label*="Stop reading"] {
+  padding: 10px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+}
+
+/* More prominent recording indicator in a11y mode */
+.a11y-mode [role="status"] {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+
 /* ─── Code viewer ───────────────────────────────────────────────────────────── */
 
 .code-block {

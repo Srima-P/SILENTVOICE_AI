@@ -1,13 +1,12 @@
 /**
  * AssistantPanel — right sidebar with the real AI conversation interface.
  * Phase 3: connects to POST /api/assistant/chat via chatApi.ts.
- *          Shows loading state, intent metadata, markdown responses.
- * Phase 4: sends selected_file + conversation_history for context-aware memory.
- *          Watches pendingAssistantInput to support "Explain This" from Explorer.
+ * Phase 4: sends selected_file + conversation_history; pendingAssistantInput.
+ * Phase 5: onboarding quick actions in empty state.
  */
 
 import { useRef, useEffect, useCallback } from "react";
-import { Bot, Trash2, Loader2, AlertCircle, Zap } from "lucide-react";
+import { Bot, Trash2, Loader2, AlertCircle, Zap, BookOpen } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { CommandInput } from "./CommandInput";
 import { EmptyState } from "./EmptyState";
@@ -23,6 +22,15 @@ const SUGGESTIONS = [
   "Summarize Dashboard.jsx",
   "Explain dependencies of App.jsx",
   "Give me a project overview",
+];
+
+// ─── Phase 5: Onboarding quick actions ───────────────────────────────────────
+
+const ONBOARDING_ACTIONS = [
+  { label: "Start Onboarding",      message: "I'm new to this project" },
+  { label: "Explain Architecture",  message: "Explain the architecture" },
+  { label: "Setup Guide",           message: "How do I set up this project?" },
+  { label: "Beginner Tasks",        message: "Give me beginner tasks" },
 ];
 
 // Max conversation history turns sent to backend (keep context window small)
@@ -213,6 +221,31 @@ export function AssistantPanel() {
               title="AI Assistant ready"
               description="Ask anything about your project files."
             />
+
+            {/* Phase 5: Onboarding quick actions */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-text-muted uppercase tracking-widest px-1 flex items-center gap-1">
+                <BookOpen size={9} aria-hidden="true" />
+                New developer?
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {ONBOARDING_ACTIONS.map((a) => (
+                  <button
+                    key={a.label}
+                    onClick={() => handleSuggestion(a.message)}
+                    disabled={assistantThinking}
+                    className={[
+                      "text-left px-2 py-1.5 rounded border text-[10px] transition-colors",
+                      "border-text-accent/30 text-text-accent hover:bg-text-accent/10",
+                      assistantThinking ? "opacity-50 cursor-not-allowed" : "",
+                    ].join(" ")}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Static suggestion chips (empty state) */}
             <div className="space-y-1.5">
               <p className="text-[10px] text-text-muted uppercase tracking-widest px-1">

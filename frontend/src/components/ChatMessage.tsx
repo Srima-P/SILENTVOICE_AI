@@ -1,14 +1,15 @@
 /**
  * ChatMessage — renders a single conversation turn.
- * Phase 3: assistant messages render Markdown; intent metadata is displayed
- * as a small context badge below the bubble.
- * Phase 4: renders follow-up suggestion chips below assistant responses.
+ * Phase 3: assistant messages render Markdown; intent metadata displayed as badge.
+ * Phase 4: follow-up suggestion chips.
+ * Phase 5: text-to-speech speaker button; Phase 5 intent labels.
  */
 
 import type { ChatMessage as ChatMessageType } from "@/types";
 import { formatTime } from "@/utils/helpers";
-import { Bot, User, FileCode, Zap, AlertCircle } from "lucide-react";
+import { Bot, User, FileCode, Zap, AlertCircle, Volume2, VolumeX } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { useSpeech } from "@/hooks/useSpeech";
 
 interface Props {
   message: ChatMessageType;
@@ -26,18 +27,32 @@ const INTENT_LABELS: Record<string, string> = {
   find_dependents: "Find dependents",
   explain_relationship: "Relationship",
   show_related: "Related files",
+  // Phase 5
+  onboarding_start: "Onboarding",
+  architecture_overview: "Architecture",
+  setup_guidance: "Setup guide",
+  beginner_tasks: "Beginner tasks",
   unsupported: "Unknown intent",
 };
 
 export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
   const isUser = message.role === "user";
   const isError = message.is_error === true;
-  const hasIntent = !isUser && message.intent && message.intent !== "unsupported";
   const hasSuggestions =
     !isUser &&
     !isError &&
     message.follow_up_suggestions &&
     message.follow_up_suggestions.length > 0;
+
+  const { speak, stop, isSpeaking, isSupported: ttsSupported } = useSpeech();
+
+  function handleTts() {
+    if (isSpeaking) {
+      stop();
+    } else {
+      speak(message.content);
+    }
+  }
 
   return (
     <div
@@ -69,7 +84,7 @@ export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
       </span>
 
       {/* Bubble + metadata */}
-      <div className={["flex flex-col gap-1", isUser ? "items-end" : "items-start"].join(" ")}>
+      <div className={["flex flex-col gap-1 min-w-0 flex-1", isUser ? "items-end" : "items-start"].join(" ")}>
         {/* Bubble */}
         <div
           className={[
@@ -95,8 +110,8 @@ export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
           </time>
         </div>
 
-        {/* Intent + file context badge (assistant messages only) */}
-        {!isUser && (message.intent || message.target_file) && (
+        {/* Intent + file context + TTS (assistant messages only) */}
+        {!isUser && (
           <div className="flex flex-wrap items-center gap-1.5 px-1">
             {message.intent && (
               <span className="flex items-center gap-1 text-[10px] text-text-muted bg-surface-3 px-1.5 py-0.5 rounded">
@@ -112,6 +127,25 @@ export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
                 <FileCode size={9} aria-hidden="true" />
                 {message.target_file.split("/").pop()}
               </span>
+            )}
+
+            {/* Phase 5: TTS speaker button */}
+            {ttsSupported && !isError && (
+              <button
+                type="button"
+                onClick={handleTts}
+                aria-label={isSpeaking ? "Stop reading response aloud" : "Read response aloud"}
+                title={isSpeaking ? "Stop" : "Read aloud"}
+                className={[
+                  "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors",
+                  isSpeaking
+                    ? "text-text-accent bg-text-accent/10"
+                    : "text-text-muted hover:text-text-accent hover:bg-surface-3",
+                ].join(" ")}
+              >
+                {isSpeaking ? <VolumeX size={9} aria-hidden="true" /> : <Volume2 size={9} aria-hidden="true" />}
+                {isSpeaking ? "Stop" : "Read"}
+              </button>
             )}
           </div>
         )}
@@ -133,7 +167,7 @@ export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
           </div>
         )}
 
-        {/* Phase 4: Follow-up suggestion chips */}
+        {/* Phase 4/5: Follow-up suggestion chips */}
         {hasSuggestions && onSuggestionClick && (
           <div className="px-1 mt-0.5">
             <p className="text-[10px] text-text-muted uppercase tracking-widest mb-1.5">

@@ -33,7 +33,20 @@ bob_sessions/task03_ai_assistant.png
 ## Task 4 - Phase 4 Features
 
 Description:
-To be completed during hackathon.
+Implemented context-aware conversational assistant with conversation memory,
+selected-file context, follow-up suggestions, and "Explain This" interaction.
 
 Screenshot:
 bob_sessions/task04_phase4.png
+
+---
+
+## Task 5 - Phase 5: Voice-Enabled Developer Onboarding Assistant
+
+Description:
+Implemented full voice-enabled developer onboarding assistant including:
+speech-to-text via Groq Whisper, text-to-speech via browser SpeechSynthesis API,
+and a developer onboarding workflow.
+
+Screenshot:
+bob_sessions/task05_phase5.png

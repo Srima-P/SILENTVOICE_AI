@@ -1,5 +1,5 @@
 """
-Assistant API routes — Phase 4.
+Assistant API routes — Phase 4/5.
 
 Endpoints:
   POST /api/assistant/chat  → Classify intent, resolve context, call Groq, return explanation

@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api.routes import health
 from app.api.routes import project
 from app.api.routes import assistant
+from app.api.routes import voice     # Phase 5
 
 api_router = APIRouter()
 
@@ -19,7 +20,5 @@ api_router.include_router(project.router, prefix="/project", tags=["project"])
 # Phase 3 routes
 api_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
 
-# ── Future routes (Phase 4+) ──────────────────────────────────────────────────
-# from app.api.routes import voice, diff
-# api_router.include_router(voice.router, prefix="/voice", tags=["voice"])
-# api_router.include_router(diff.router,  prefix="/diff",  tags=["diff"])
+# Phase 5 routes
+api_router.include_router(voice.router, prefix="/voice", tags=["voice"])

@@ -14,6 +14,12 @@ Phase 4 additions:
   explain_relationship  How two specific files relate / interact
   show_related          Show files related to the current file
 
+Phase 5 additions (onboarding):
+  onboarding_start      "I'm new to this project", "help me get started"
+  architecture_overview "Explain the architecture"
+  setup_guidance        "How do I set up / run this project?"
+  beginner_tasks        "Give me beginner tasks / what should I do first?"
+
 Detection strategy:
   1. Keyword matching against normalised input
   2. File-reference detection (*.ext patterns, known filenames)
@@ -41,6 +47,11 @@ class Intent(str, Enum):
     FIND_DEPENDENTS = "find_dependents"
     EXPLAIN_RELATIONSHIP = "explain_relationship"
     SHOW_RELATED = "show_related"
+    # Phase 5 — onboarding
+    ONBOARDING_START = "onboarding_start"
+    ARCHITECTURE_OVERVIEW = "architecture_overview"
+    SETUP_GUIDANCE = "setup_guidance"
+    BEGINNER_TASKS = "beginner_tasks"
     UNSUPPORTED = "unsupported"
 
 
@@ -117,6 +128,59 @@ _INTENT_PATTERNS: list[tuple[re.Pattern[str], Intent]] = [
         r")\b",
         re.I,
     ), Intent.SHOW_RELATED),
+
+    # ── Phase 5: Onboarding start — "I'm new", "help me get started" ─────────
+    (re.compile(
+        r"\b("
+        r"i'?m\s+(new|a\s+newbie|a\s+beginner|unfamiliar|not\s+familiar)"
+        r"|new\s+to\s+(this|the)\s+(project|codebase|repo|code)"
+        r"|just\s+(joined|started|onboard)"
+        r"|help\s+me\s+(get\s+started|understand\s+(this|the)\s+(project|codebase))"
+        r"|onboard(ing)?\s*(me|guide|wizard|start)?"
+        r"|start\s+(the\s+)?onboard"
+        r"|where\s+do\s+i\s+start"
+        r"|getting\s+started"
+        r")\b",
+        re.I,
+    ), Intent.ONBOARDING_START),
+
+    # ── Phase 5: Architecture overview ───────────────────────────────────────
+    (re.compile(
+        r"\b("
+        r"(explain|describe|show|what\s+is)\s+(the\s+)?(architecture|design|structure|pattern)"
+        r"|how\s+is\s+(this|the)\s+(project|app|codebase)\s+(structured|designed|organized|built)"
+        r"|system\s+design"
+        r"|high.level\s+(design|view|overview)"
+        r"|overall\s+(design|structure|architecture)"
+        r")\b",
+        re.I,
+    ), Intent.ARCHITECTURE_OVERVIEW),
+
+    # ── Phase 5: Setup guidance ───────────────────────────────────────────────
+    (re.compile(
+        r"\b("
+        r"how\s+do\s+i\s+(set\s+up|setup|install|run|start|launch|configure)"
+        r"|how\s+to\s+(set\s+up|setup|install|run|start|launch|configure)"
+        r"|setup\s+(guide|instructions?|steps?)"
+        r"|install(ation)?\s+(guide|instructions?|steps?)"
+        r"|run(ning)?\s+(the\s+)?(project|app|application|server)"
+        r"|dev\s+environment|development\s+(setup|environment)"
+        r"|prerequisites|dependencies\s+installation"
+        r")\b",
+        re.I,
+    ), Intent.SETUP_GUIDANCE),
+
+    # ── Phase 5: Beginner tasks ───────────────────────────────────────────────
+    (re.compile(
+        r"\b("
+        r"(give|suggest|recommend|show|list)\s+(me\s+)?(beginner|starter|simple|easy|first)?\s*tasks?"
+        r"|(beginner|starter|learning|first)\s+(tasks?|exercises?|issues?|challenges?)"
+        r"|what\s+(should|can)\s+i\s+(do|work\s+on|start\s+with)"
+        r"|where\s+should\s+i\s+start\s+(coding|contributing|working)"
+        r"|good\s+(first\s+issue|starting\s+point|place\s+to\s+start)"
+        r")\b",
+        re.I,
+    ), Intent.BEGINNER_TASKS),
 
     # ── Project-level overview — must come before generic explain ─────────────
     (re.compile(

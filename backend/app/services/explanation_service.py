@@ -25,6 +25,7 @@ from app.services.groq_service import GroqService, GroqError
 from app.services.intent_classifier import Intent
 from app.services.project_scanner import ProjectScanner
 from app.services.dependency_analyzer import DependencyAnalyzer
+from app.services.onboarding_service import OnboardingService, OnboardingResult
 
 logger = logging.getLogger("silentvoice.explanation")
 
@@ -120,6 +121,25 @@ class ExplanationService:
                     )
                 return await self._show_related(resolved_file, project_analysis)
 
+            # ── Phase 5 intents — delegate to OnboardingService ────────────────
+            _ONBOARDING_INTENTS = (
+                Intent.ONBOARDING_START,
+                Intent.ARCHITECTURE_OVERVIEW,
+                Intent.SETUP_GUIDANCE,
+                Intent.BEGINNER_TASKS,
+            )
+            if intent in _ONBOARDING_INTENTS:
+                ob_svc = OnboardingService()
+                ob_result = await ob_svc.handle(intent, project_analysis)
+                return ExplanationResult(
+                    intent=ob_result.intent,
+                    target_file=None,
+                    response=ob_result.response,
+                    groq_used=ob_result.groq_used,
+                    error=ob_result.error,
+                    follow_up_suggestions=ob_result.follow_up_suggestions,
+                )
+
             # Unsupported
             return ExplanationResult(
                 intent=intent.value,
@@ -132,7 +152,9 @@ class ExplanationService:
                     "- `Explain dependencies of App.jsx`\n"
                     "- `Give me a project overview`\n"
                     "- `Which files depend on Login.jsx?`\n"
-                    "- `Show related components`"
+                    "- `Show related components`\n"
+                    "- `I'm new to this project`\n"
+                    "- `How do I set up this project?`"
                 ),
                 groq_used=False,
                 error=True,
