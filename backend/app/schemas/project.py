@@ -31,7 +31,14 @@ class ProjectTreeResponse(BaseModel):
     """Response for GET /api/project/tree"""
 
     name: str
-    root_path: str = Field(..., description="Resolved absolute project root (server-side only)")
+    # root_path intentionally excluded from client responses — server-side only.
+    # Stored internally so ProjectScanner.scan() can populate it, but excluded
+    # from JSON serialization via exclude=True.
+    root_path: Optional[str] = Field(
+        None,
+        exclude=True,
+        description="Resolved absolute project root (server-side only, never sent to client)",
+    )
     type: str = "directory"
     total_files: int
     total_dirs: int
@@ -95,7 +102,13 @@ class ProjectAnalysisResponse(BaseModel):
     """Response for GET /api/project/analyze"""
 
     project_name: str
-    root_path: str
+    # root_path is kept for internal service use (e.g. path resolution in
+    # ExplanationService) but is excluded from all JSON responses sent to clients.
+    root_path: Optional[str] = Field(
+        None,
+        exclude=True,
+        description="Absolute project root — internal use only, never serialized to client",
+    )
     total_files: int
     source_files: int
     languages: dict[str, int] = Field(

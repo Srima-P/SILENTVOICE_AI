@@ -349,6 +349,9 @@ class ProjectScanner:
             UnicodeDecodeError — binary / non-UTF-8 file (re-raised as ValueError)
         """
         # --- Security: normalize and validate ---
+        # Reject absolute paths outright (covers both POSIX and Windows drive letters)
+        if Path(relative_path).is_absolute():
+            raise ValueError(f"Absolute paths are not accepted: {relative_path!r}")
         # Strip leading separators so Path() doesn't treat it as absolute
         clean = relative_path.lstrip("/\\")
         # Reject obvious traversal fragments

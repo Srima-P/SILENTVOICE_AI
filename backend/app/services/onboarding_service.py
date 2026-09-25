@@ -150,7 +150,11 @@ class OnboardingService:
             fpath = self._root / fname
             if fpath.exists():
                 try:
-                    content, _ = self._scanner.safe_read(str(fpath))
+                    # Pass fname (relative to project root) — safe_read() expects
+                    # a path relative to the project root, not an absolute path.
+                    # str(fpath) would produce an absolute path that bypasses the
+                    # relative-path contract and fails on Windows.
+                    content, _ = self._scanner.safe_read(fname)
                     if content.strip():
                         setup_contents[fname] = content[:4000]  # cap per file
                         if len(setup_contents) >= 4:          # limit total files read

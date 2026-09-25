@@ -1,17 +1,34 @@
 """
 Phase 4 assistant API schemas.
 Backward compatible — all new fields are optional with defaults.
+
+Security hardening (audit fixes):
+  - selected_file: max_length=512, path traversal / null-byte rejection
+  - ConversationTurn.content: max_length=4000 per turn
+  - conversation_history: max 20 turns enforced by field_validator
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# Reject any selected_file value that contains path traversal sequences,
+# null bytes, or shell metacharacters that have no place in a file path.
+_TRAVERSAL_RE = re.compile(r"\.\.|[\x00-\x1f]|[<>|*?]")
+
+# Maximum number of conversation turns accepted per request.
+_MAX_HISTORY_TURNS = 20
 
 
 class ConversationTurn(BaseModel):
     """A single turn in the conversation history sent from the frontend."""
-    role: str = Field(..., description="'user' or 'assistant'")
-    content: str = Field(..., description="The text content of this turn")
+    role: str = Field(..., max_length=16, description="'user' or 'assistant'")
+    content: str = Field(
+        ...,
+        max_length=4000,
+        description="The text content of this turn (max 4 000 chars)",
+    )
 
 
 class ChatRequest(BaseModel):
@@ -25,12 +42,41 @@ class ChatRequest(BaseModel):
     # Phase 4: optional context fields — backward compatible (both default to None/[])
     selected_file: Optional[str] = Field(
         None,
+        max_length=512,
         description="Path of the file currently selected in the Project Explorer.",
     )
     conversation_history: list[ConversationTurn] = Field(
         default_factory=list,
-        description="Recent conversation turns (max ~10) sent by the frontend for memory.",
+        description=f"Recent conversation turns (max {_MAX_HISTORY_TURNS}) for memory.",
     )
+
+    @field_validator("selected_file")
+    @classmethod
+    def validate_selected_file(cls, v: Optional[str]) -> Optional[str]:
+        """Reject path traversal sequences and control characters."""
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            return None
+        if _TRAVERSAL_RE.search(stripped):
+            raise ValueError(
+                "selected_file contains invalid characters or path traversal sequences"
+            )
+        return stripped
+
+    @field_validator("conversation_history")
+    @classmethod
+    def validate_history_length(
+        cls, v: list[ConversationTurn]
+    ) -> list[ConversationTurn]:
+        """Reject requests with more than _MAX_HISTORY_TURNS turns."""
+        if len(v) > _MAX_HISTORY_TURNS:
+            raise ValueError(
+                f"conversation_history exceeds maximum of {_MAX_HISTORY_TURNS} turns "
+                f"(received {len(v)})"
+            )
+        return v
 
 
 class ChatResponse(BaseModel):
