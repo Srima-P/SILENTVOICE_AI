@@ -205,6 +205,5 @@ const demoTree: FileNode[] = [
 
 export const DEMO_PROJECT: ProjectMeta = {
   name: "demo-app",
-  rootPath: "demo_project",
   tree: demoTree,
 };

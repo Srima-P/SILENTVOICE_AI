@@ -25,7 +25,6 @@ export interface FileNode {
 
 export interface ProjectMeta {
   name: string;
-  rootPath: string;
   tree: FileNode[];
 }
 
@@ -43,7 +42,8 @@ export interface ApiFileNode {
 
 export interface ProjectTreeResponse {
   name: string;
-  root_path: string;
+  /** root_path is excluded from server responses (server-side only). */
+  root_path?: string;
   type: string;
   total_files: number;
   total_dirs: number;
@@ -73,7 +73,8 @@ export interface DependencyMap {
 
 export interface ProjectAnalysisResponse {
   project_name: string;
-  root_path: string;
+  /** root_path is excluded from server responses (server-side only). */
+  root_path?: string;
   total_files: number;
   source_files: number;
   languages: Record<string, number>;

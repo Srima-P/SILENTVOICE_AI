@@ -29,7 +29,6 @@ export function useProjectScan() {
 
       setProject({
         name: treeResponse.name,
-        rootPath: treeResponse.root_path,
         tree,
       });
 
