@@ -20,6 +20,9 @@ Phase 5 additions (onboarding):
   setup_guidance        "How do I set up / run this project?"
   beginner_tasks        "Give me beginner tasks / what should I do first?"
 
+Phase 6 additions:
+  modify_code           "Modify/edit/refactor/fix code in a file"
+
 Detection strategy:
   1. Keyword matching against normalised input
   2. File-reference detection (*.ext patterns, known filenames)
@@ -52,7 +55,9 @@ class Intent(str, Enum):
     ARCHITECTURE_OVERVIEW = "architecture_overview"
     SETUP_GUIDANCE = "setup_guidance"
     BEGINNER_TASKS = "beginner_tasks"
-    UNSUPPORTED = "unsupported"
+    # Phase 6 — code modification (must be before UNSUPPORTED)
+    MODIFY_CODE = "modify_code"
+    UNSUPPORTED = "unsupported"   # must remain last
 
 
 # Supported source-file extensions (lowercase)
@@ -85,6 +90,8 @@ class ClassificationResult:
             Intent.FIND_DEPENDENTS,
             Intent.EXPLAIN_RELATIONSHIP,
             Intent.SHOW_RELATED,
+            # Phase 6
+            Intent.MODIFY_CODE,
         )
 
 
@@ -93,6 +100,30 @@ class ClassificationResult:
 # (pattern_regex, intent_to_assign)
 # Ordered: more specific patterns first
 _INTENT_PATTERNS: list[tuple[re.Pattern[str], Intent]] = [
+    # ── Phase 6: Modify / edit code in a file ────────────────────────────────
+    # Inserted before EXPLAIN_FILE so that action verbs like "modify", "fix",
+    # "refactor", "edit" are not swallowed by the generic "explain" pattern.
+    (re.compile(
+        r"\b("
+        # Verb + code noun directly (e.g. "fix the bug", "update the code")
+        r"(modify|change|update|edit|refactor|fix|add|remove|rename|replace|rewrite)\s+(the\s+)?"
+        r"(file|code|function|class|method|variable|import|comment|docstring|type\s+hint|logic|error|bug|test)"
+        # High-signal action verbs alone (e.g. "Modify Login.jsx", "Refactor App.jsx")
+        r"|(modify|refactor|rewrite|edit|update)\b"
+        # "add a function/method/class/..." (any object follows)
+        r"|add\s+(a\s+)?(function|method|class|import|parameter|argument|type\s+hint|docstring|comment|error\s+handling|return\s+type)"
+        # "remove unused imports / dead code / ..." (covers "remove unused imports from X")
+        r"|remove\s+(the\s+)?(function|method|class|import|parameter|dead\s+code|unused)"
+        # "fix the bug/error/..."
+        r"|fix\s+(the\s+)?(bug|error|issue|typo|lint|type\s+error|import)"
+        r"|make\s+\S+\s+(async|typed|simpler|faster|safer|more\s+readable)"
+        r"|convert\s+(to|from)\s+\w+"
+        r"|extract\s+(a\s+)?(function|method|class|constant)"
+        r"|rewrite\s+(this|the\s+)?(file|function|class|method|logic)?"
+        r")\b",
+        re.I,
+    ), Intent.MODIFY_CODE),
+
     # ── Phase 4: Find dependents — "which files depend on X", "who imports X" ──
     (re.compile(
         r"\b("
@@ -307,6 +338,7 @@ def classify(text: str) -> ClassificationResult:
             "Could not determine intent. "
             "Try: 'Explain Login.jsx', 'Summarize App.jsx', "
             "'Explain dependencies of App.jsx', 'Give me a project overview', "
-            "'Which files depend on Login.jsx?', or 'Show related components'."
+            "'Which files depend on Login.jsx?', 'Show related components', or "
+            "'Modify Login.jsx to add type hints'."
         ),
     )

@@ -121,6 +121,40 @@ class ExplanationService:
                     )
                 return await self._show_related(resolved_file, project_analysis)
 
+            # ── Phase 6: Modify code ──────────────────────────────────────────
+            if intent == Intent.MODIFY_CODE:
+                if not resolved_file:
+                    return ExplanationResult(
+                        intent=intent.value,
+                        target_file=None,
+                        response=(
+                            "I need a file to modify. "
+                            "Try: **Modify Login.jsx to add type hints**\n\n"
+                            "Make sure a file is selected in the Project Explorer, "
+                            "or include the filename in your request."
+                        ),
+                        error=True,
+                        groq_used=False,
+                    )
+                fname = resolved_file.split("/")[-1]
+                return ExplanationResult(
+                    intent=intent.value,
+                    target_file=resolved_file,
+                    response=(
+                        f"Ready to propose changes to `{resolved_file}`.\n\n"
+                        "Click **Propose Change** below to generate a diff you can "
+                        "review and approve before anything is written to disk."
+                    ),
+                    error=False,
+                    groq_used=False,
+                    follow_up_suggestions=[
+                        f"Explain {fname}",
+                        f"Summarize {fname}",
+                        f"What are the dependencies of {fname}?",
+                        f"Which files depend on {fname}?",
+                    ],
+                )
+
             # ── Phase 5 intents — delegate to OnboardingService ────────────────
             _ONBOARDING_INTENTS = (
                 Intent.ONBOARDING_START,
@@ -154,7 +188,8 @@ class ExplanationService:
                     "- `Which files depend on Login.jsx?`\n"
                     "- `Show related components`\n"
                     "- `I'm new to this project`\n"
-                    "- `How do I set up this project?`"
+                    "- `How do I set up this project?`\n"
+                    "- `Modify Login.jsx to add type hints`"
                 ),
                 groq_used=False,
                 error=True,
@@ -510,6 +545,13 @@ def _generate_follow_up_suggestions(
             f"Which files depend on {fname}?" if fname else "Which files depend on it?",
             f"What are the dependencies of {fname}?" if fname else "What does it depend on?",
             "Give me a project overview",
+        ]
+    elif intent == Intent.MODIFY_CODE:
+        base = [
+            f"Explain {fname}" if fname else "Explain this file",
+            f"Summarize {fname}" if fname else "Summarize this file",
+            f"What are the dependencies of {fname}?" if fname else "What are its dependencies?",
+            f"Which files depend on {fname}?" if fname else "Which files depend on it?",
         ]
     else:
         # project_overview, explain_relationship, or any other

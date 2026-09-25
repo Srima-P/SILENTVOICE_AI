@@ -418,6 +418,64 @@ Based on the above, what role does `{file_path}` play in the overall architectur
         return await self.complete(system, user, max_tokens=800)
 
 
+    # ── Phase 6: Code modification ────────────────────────────────────────────
+
+    async def propose_code_modification(
+        self,
+        file_path: str,
+        language: str,
+        original_content: str,
+        instruction: str,
+    ) -> str:
+        """
+        Ask Groq to produce a complete replacement for *original_content* based on
+        the natural-language *instruction*.
+
+        Returns ONLY the raw replacement file content as a plain-text string.
+        The caller is responsible for:
+          - Stripping any code-fence wrappers via _strip_fences.
+          - Validating that the result is non-empty.
+          - Computing the diff.
+
+        System prompt design:
+          - Instructs the model to output source code only — no prose, no markdown,
+            no surrounding text.
+          - Requests that ambiguous or unsafe instructions leave the file unchanged
+            and prepend a single-line comment rather than refusing entirely.
+          - Low temperature (0.1) prioritises determinism over creativity.
+          - max_tokens=4096 accommodates most files comfortably.
+
+        Raises:
+            GroqError: On any API failure (key missing, network, rate limit, etc.).
+        """
+        system = (
+            "You are a precise code editor. "
+            "You will be given the complete contents of a source file and a "
+            "natural-language instruction describing what to change. "
+            "Return ONLY the complete replacement file content as plain text — "
+            "no prose, no explanation, no code fences, no markdown, no surrounding "
+            "text of any kind. "
+            "Preserve all whitespace, indentation, comments, and imports not directly "
+            "affected by the instruction. "
+            "If the instruction is ambiguous, impossible, or unsafe, return the "
+            "original content unchanged with a single-line comment prepended: "
+            f"# SilentVoice: [brief reason]. "
+            "Never output shell commands, file paths, executable directives, or "
+            "anything other than source code."
+        )
+        user = (
+            f"File: {file_path}\n"
+            f"Language: {language}\n\n"
+            f"Instruction: {instruction}\n\n"
+            f"Original file content:\n{original_content}"
+        )
+        return await self.complete(
+            system,
+            user,
+            temperature=0.1,
+            max_tokens=4096,
+        )
+
     # ── Phase 5: Onboarding prompts ───────────────────────────────────────────
 
     async def onboarding_start(

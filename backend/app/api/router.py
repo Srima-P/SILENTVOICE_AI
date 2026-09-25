@@ -8,6 +8,7 @@ from app.api.routes import health
 from app.api.routes import project
 from app.api.routes import assistant
 from app.api.routes import voice     # Phase 5
+from app.api.routes import changes   # Phase 6
 
 api_router = APIRouter()
 
@@ -22,3 +23,6 @@ api_router.include_router(assistant.router, prefix="/assistant", tags=["assistan
 
 # Phase 5 routes
 api_router.include_router(voice.router, prefix="/voice", tags=["voice"])
+
+# Phase 6 routes
+api_router.include_router(changes.router, prefix="/changes", tags=["changes"])

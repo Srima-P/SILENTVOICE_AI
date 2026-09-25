@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # Files larger than this return a friendly "too large" message.
     max_file_size_for_ai: int = 102_400  # 100 KB
 
+    # Phase 6 — Code modification proposals
+    # Maximum number of pending proposals held in memory at once.
+    # When capacity is reached the oldest proposal is evicted.
+    max_pending_changes: int = 50
+    # Time-to-live (seconds) for a pending proposal before cleanup_expired() removes it.
+    pending_change_ttl_seconds: int = 3600  # 1 hour
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
