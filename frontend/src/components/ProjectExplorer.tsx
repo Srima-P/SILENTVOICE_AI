@@ -2,9 +2,10 @@
  * ProjectExplorer — left sidebar.
  * Phase 2: loads the real file tree from the backend via useProjectScan.
  * File contents are fetched on demand when a node is selected.
+ * Phase 4: shows "Explain this file" quick-action when a file is selected.
  */
 
-import { FolderOpen, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { FolderOpen, RefreshCw, AlertCircle, Loader2, Zap } from "lucide-react";
 import { FileTree } from "./FileTree";
 import { EmptyState } from "./EmptyState";
 import { ProjectInsightsPanel } from "./ProjectInsightsPanel";
@@ -13,15 +14,20 @@ import { useProjectScan } from "@/hooks/useProjectScan";
 import type { FileNode } from "@/types";
 
 export function ProjectExplorer() {
-  const { state } = useApp();
+  const { state, setPendingAssistantInput } = useApp();
   const { scanProject, openFile } = useProjectScan();
   const project = state.project;
-  const { scanState, fileLoadingPath, fileLoadError } = state;
+  const { scanState, fileLoadingPath, fileLoadError, selectedFile } = state;
   const isScanning = scanState.status === "scanning";
 
   function handleSelect(node: FileNode) {
     if (node.type !== "file") return;
     void openFile(node);
+  }
+
+  /** Phase 4: sends "Explain this" to the assistant for the selected file. */
+  function handleExplainThis() {
+    setPendingAssistantInput("Explain this");
   }
 
   return (
@@ -56,6 +62,27 @@ export function ProjectExplorer() {
           )}
         </button>
       </div>
+
+      {/* Phase 4: "Explain This" quick-action bar — shown when a file is selected */}
+      {selectedFile && selectedFile.type === "file" && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-surface-2">
+          <span
+            className="flex-1 text-[10px] font-mono text-text-muted truncate"
+            title={selectedFile.path}
+          >
+            {selectedFile.name}
+          </span>
+          <button
+            onClick={handleExplainThis}
+            title={`Explain ${selectedFile.name}`}
+            aria-label={`Explain ${selectedFile.name} with AI assistant`}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-text-accent border border-text-accent/30 hover:bg-text-accent/10 transition-colors flex-shrink-0"
+          >
+            <Zap size={9} aria-hidden="true" />
+            Explain
+          </button>
+        </div>
+      )}
 
       {/* Scan error banner */}
       {scanState.status === "error" && scanState.error && (

@@ -1,9 +1,13 @@
 /**
- * chatApi.ts — Phase 3 frontend service for the AI assistant.
+ * chatApi.ts — Phase 3/4 frontend service for the AI assistant.
  * Routes through Vite proxy /api → backend, never hardcodes backend URL.
+ *
+ * Phase 4 additions:
+ *   - sendMessage accepts optional selected_file and conversation_history
+ *     for context-aware conversation memory.
  */
 
-import type { ChatResponse, AssistantStatus } from "@/types";
+import type { ChatResponse, AssistantStatus, ConversationTurn } from "@/types";
 
 const BASE = "/api/assistant";
 
@@ -32,12 +36,24 @@ async function assistantFetch<T>(
 
 /**
  * Send a natural language message to the assistant.
- * Returns the structured ChatResponse from the backend.
+ *
+ * Phase 4: also sends `selected_file` and `conversation_history` so the
+ * backend can resolve follow-up pronouns ("it", "this") correctly.
  */
-export async function sendMessage(message: string): Promise<ChatResponse> {
+export async function sendMessage(
+  message: string,
+  context?: {
+    selected_file?: string;
+    conversation_history?: ConversationTurn[];
+  }
+): Promise<ChatResponse> {
   return assistantFetch<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      selected_file: context?.selected_file ?? null,
+      conversation_history: context?.conversation_history ?? [],
+    }),
   });
 }
 

@@ -1,8 +1,8 @@
 """
-Assistant API routes — Phase 3.
+Assistant API routes — Phase 4.
 
 Endpoints:
-  POST /api/assistant/chat  → Classify intent, resolve file, call Groq, return explanation
+  POST /api/assistant/chat  → Classify intent, resolve context, call Groq, return explanation
   GET  /api/assistant/status → Whether Groq is configured
 """
 from __future__ import annotations
@@ -19,6 +19,7 @@ from app.services.file_resolver import FileResolver
 from app.services.explanation_service import ExplanationService
 from app.services.project_scanner import ProjectScanner
 from app.services.dependency_analyzer import DependencyAnalyzer, detect_react_components
+from app.services.conversation_manager import ConversationManager
 
 router = APIRouter()
 logger = logging.getLogger("silentvoice.api.assistant")
@@ -44,12 +45,17 @@ async def assistant_status() -> dict:
 )
 async def chat(body: ChatRequest) -> ChatResponse:
     """
-    Pipeline:
+    Phase 4 pipeline:
       1. Classify intent (deterministic, no LLM)
-      2. Resolve file reference against project tree (if needed)
-      3. Load project analysis metadata (for context)
-      4. Call ExplanationService → GroqService
-      5. Return structured response
+      2. Build project file tree for context resolution
+      3. Use ConversationManager to resolve the active file from:
+           a. Explicit file reference in the message
+           b. selected_file passed from the frontend (Project Explorer selection)
+           c. Last file discussed in conversation_history
+      4. Extract second file reference (for relationship queries)
+      5. Load project analysis metadata (best-effort)
+      6. Call ExplanationService → GroqService
+      7. Return structured response with follow_up_suggestions
     """
     logger.info("Chat request: %r", body.message[:120])
 
@@ -62,61 +68,90 @@ async def chat(body: ChatRequest) -> ChatResponse:
         classification.confidence,
     )
 
-    # 2. Resolve file (if the intent requires one)
-    resolved_file: str | None = None
-    candidates: list[str] = []
+    # 2. Build project tree for resolver
+    tree_nodes: list = []
+    try:
+        scanner = ProjectScanner(settings.project_root_path)
+        tree = scanner.scan()
+        tree_nodes = _flatten_to_raw(tree.children)
+    except Exception as exc:
+        logger.warning("Could not build project tree for context resolution: %s", exc)
 
-    if classification.is_file_intent and classification.file_reference:
-        try:
-            scanner = ProjectScanner(settings.project_root_path)
-            tree = scanner.scan()
-            resolver = FileResolver(tree.children)
-            result = resolver.resolve(classification.file_reference)
-        except Exception as exc:
-            logger.exception("File resolution error")
-            return ChatResponse(
-                intent=classification.intent.value,
-                target_file=None,
-                response=f"Could not scan project to resolve file reference: {exc}",
-                error=True,
-                groq_used=False,
-            )
+    # 3. Resolve active file via ConversationManager
+    manager = ConversationManager(tree_nodes if tree_nodes else None)
+    ctx = manager.resolve_context(
+        message=body.message,
+        selected_file=body.selected_file,
+        conversation_history=body.conversation_history,
+    )
 
-        if result.found:
-            resolved_file = result.path
-        elif result.candidates:
-            # Ambiguous — return clarification request without calling Groq
-            return ChatResponse(
-                intent=classification.intent.value,
-                target_file=None,
-                response=result.message,
-                error=False,
-                candidates=result.candidates,
-                groq_used=False,
-            )
-        else:
-            # Not found
-            return ChatResponse(
-                intent=classification.intent.value,
-                target_file=None,
-                response=result.message,
-                error=True,
-                groq_used=False,
-            )
+    resolved_file: str | None = ctx.resolved_file
+    context_source: str = ctx.context_source
 
-    # 3. Load project analysis (best-effort — don't fail the request if absent)
+    logger.info(
+        "Context resolution: source=%s  resolved_file=%r  candidates=%r",
+        context_source,
+        resolved_file,
+        ctx.candidates,
+    )
+
+    # Ambiguous file reference — return clarification to the user
+    if ctx.candidates:
+        return ChatResponse(
+            intent=classification.intent.value,
+            target_file=None,
+            response=(
+                f"I found multiple files matching your reference. "
+                f"Which one did you mean?\n\n"
+                + "\n".join(f"- `{c}`" for c in ctx.candidates)
+            ),
+            error=False,
+            candidates=ctx.candidates,
+            groq_used=False,
+            context_source=context_source,
+        )
+
+    # Explicit ref present but not found in project
+    if (
+        context_source == "explicit"
+        and not resolved_file
+        and classification.file_reference
+    ):
+        return ChatResponse(
+            intent=classification.intent.value,
+            target_file=None,
+            response=f"No file matching `{classification.file_reference}` was found in the project.",
+            error=True,
+            groq_used=False,
+            context_source=context_source,
+        )
+
+    # 4. Extract second file for relationship queries
+    second_file: str | None = None
+    if classification.intent == Intent.EXPLAIN_RELATIONSHIP:
+        raw_second = manager.extract_second_file(body.message)
+        if raw_second:
+            resolver = FileResolver(tree_nodes) if tree_nodes else None
+            if resolver:
+                r2 = resolver.resolve(raw_second)
+                second_file = r2.path if r2.found else raw_second
+            else:
+                second_file = raw_second
+
+    # 5. Load project analysis (best-effort)
     project_analysis: ProjectAnalysisResponse | None = None
     try:
         project_analysis = await _load_analysis()
     except Exception as exc:
         logger.warning("Could not load project analysis: %s", exc)
 
-    # 4. Delegate to ExplanationService
+    # 6. Delegate to ExplanationService
     svc = ExplanationService()
     explanation = await svc.handle(
         intent=classification.intent,
         resolved_file=resolved_file,
         project_analysis=project_analysis,
+        second_file=second_file,
     )
 
     return ChatResponse(
@@ -124,12 +159,32 @@ async def chat(body: ChatRequest) -> ChatResponse:
         target_file=explanation.target_file,
         response=explanation.response,
         error=explanation.error,
-        candidates=candidates,
+        candidates=[],
         groq_used=explanation.groq_used,
+        follow_up_suggestions=explanation.follow_up_suggestions,
+        context_source=context_source,
     )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _flatten_to_raw(nodes: list) -> list:
+    """Convert FileNode objects (or dicts) into raw dict format for FileResolver."""
+    result = []
+    for node in nodes:
+        if hasattr(node, "__dict__"):
+            raw = {
+                "type": node.type,
+                "name": node.name,
+                "path": node.path,
+            }
+            if hasattr(node, "children") and node.children:
+                raw["children"] = _flatten_to_raw(node.children)
+        else:
+            raw = node
+        result.append(raw)
+    return result
+
 
 async def _load_analysis() -> ProjectAnalysisResponse:
     """

@@ -58,6 +58,7 @@ const INITIAL_STATE: AppState = {
   activity: [],
   activeWorkflowTab: "changes",
   accessibility: DEFAULT_ACCESSIBILITY,
+  pendingAssistantInput: null,
 };
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -77,7 +78,9 @@ type Action =
   | { type: "SET_WORKFLOW_TAB"; tab: WorkflowTab }
   | { type: "SET_ACCESSIBILITY"; prefs: Partial<AccessibilityPreferences> }
   | { type: "ADD_ACTIVITY"; entry: ActivityEntry }
-  | { type: "ADD_PROPOSED_CHANGE"; change: ProposedChange };
+  | { type: "ADD_PROPOSED_CHANGE"; change: ProposedChange }
+  // Phase 4
+  | { type: "SET_PENDING_INPUT"; text: string | null };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -161,6 +164,10 @@ function appReducer(state: AppState, action: Action): AppState {
         proposedChanges: [...state.proposedChanges, action.change],
       };
 
+    // Phase 4
+    case "SET_PENDING_INPUT":
+      return { ...state, pendingAssistantInput: action.text };
+
     default:
       return state;
   }
@@ -184,6 +191,8 @@ interface AppContextValue {
   setWorkflowTab: (tab: WorkflowTab) => void;
   setAccessibility: (prefs: Partial<AccessibilityPreferences>) => void;
   addActivity: (entry: ActivityEntry) => void;
+  /** Phase 4: signal the AssistantPanel to send a message (e.g. from Explain This) */
+  setPendingAssistantInput: (text: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -253,6 +262,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (entry: ActivityEntry) => dispatch({ type: "ADD_ACTIVITY", entry }),
     []
   );
+  const setPendingAssistantInput = useCallback(
+    (text: string | null) => dispatch({ type: "SET_PENDING_INPUT", text }),
+    []
+  );
 
   return (
     <AppContext.Provider
@@ -272,6 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setWorkflowTab,
         setAccessibility,
         addActivity,
+        setPendingAssistantInput,
       }}
     >
       {children}

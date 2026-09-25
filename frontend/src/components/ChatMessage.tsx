@@ -2,6 +2,7 @@
  * ChatMessage — renders a single conversation turn.
  * Phase 3: assistant messages render Markdown; intent metadata is displayed
  * as a small context badge below the bubble.
+ * Phase 4: renders follow-up suggestion chips below assistant responses.
  */
 
 import type { ChatMessage as ChatMessageType } from "@/types";
@@ -11,6 +12,10 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface Props {
   message: ChatMessageType;
+  /** Phase 4: called when the user clicks a follow-up suggestion chip */
+  onSuggestionClick?: (text: string) => void;
+  /** Phase 4: disable chips while the assistant is thinking */
+  disabled?: boolean;
 }
 
 const INTENT_LABELS: Record<string, string> = {
@@ -18,13 +23,21 @@ const INTENT_LABELS: Record<string, string> = {
   summarize_file: "Summarize file",
   explain_dependencies: "Dependencies",
   project_overview: "Project overview",
+  find_dependents: "Find dependents",
+  explain_relationship: "Relationship",
+  show_related: "Related files",
   unsupported: "Unknown intent",
 };
 
-export function ChatMessage({ message }: Props) {
+export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {
   const isUser = message.role === "user";
   const isError = message.is_error === true;
   const hasIntent = !isUser && message.intent && message.intent !== "unsupported";
+  const hasSuggestions =
+    !isUser &&
+    !isError &&
+    message.follow_up_suggestions &&
+    message.follow_up_suggestions.length > 0;
 
   return (
     <div
@@ -92,7 +105,10 @@ export function ChatMessage({ message }: Props) {
               </span>
             )}
             {message.target_file && (
-              <span className="flex items-center gap-1 text-[10px] text-text-muted bg-surface-3 px-1.5 py-0.5 rounded font-mono truncate max-w-[180px]" title={message.target_file}>
+              <span
+                className="flex items-center gap-1 text-[10px] text-text-muted bg-surface-3 px-1.5 py-0.5 rounded font-mono truncate max-w-[180px]"
+                title={message.target_file}
+              >
                 <FileCode size={9} aria-hidden="true" />
                 {message.target_file.split("/").pop()}
               </span>
@@ -106,11 +122,40 @@ export function ChatMessage({ message }: Props) {
             <p className="text-[10px] text-text-muted mb-1">Did you mean one of these?</p>
             <ul className="space-y-0.5">
               {message.candidates.map((c) => (
-                <li key={c} className="text-[10px] font-mono text-text-accent bg-surface-3 px-1.5 py-0.5 rounded">
+                <li
+                  key={c}
+                  className="text-[10px] font-mono text-text-accent bg-surface-3 px-1.5 py-0.5 rounded"
+                >
                   {c}
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Phase 4: Follow-up suggestion chips */}
+        {hasSuggestions && onSuggestionClick && (
+          <div className="px-1 mt-0.5">
+            <p className="text-[10px] text-text-muted uppercase tracking-widest mb-1.5">
+              Follow up:
+            </p>
+            <div className="flex flex-col gap-1">
+              {message.follow_up_suggestions!.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => onSuggestionClick(s)}
+                  disabled={disabled}
+                  className={[
+                    "text-left px-2 py-1 rounded border text-[10px] transition-colors",
+                    "border-border/60 text-text-muted hover:text-text-primary hover:bg-surface-3 hover:border-text-accent/30",
+                    disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <Zap size={8} className="inline mr-1 text-text-accent opacity-70" aria-hidden="true" />
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -2,6 +2,8 @@
  * AssistantPanel — right sidebar with the real AI conversation interface.
  * Phase 3: connects to POST /api/assistant/chat via chatApi.ts.
  *          Shows loading state, intent metadata, markdown responses.
+ * Phase 4: sends selected_file + conversation_history for context-aware memory.
+ *          Watches pendingAssistantInput to support "Explain This" from Explorer.
  */
 
 import { useRef, useEffect, useCallback } from "react";
@@ -12,7 +14,7 @@ import { EmptyState } from "./EmptyState";
 import { useApp } from "@/contexts/AppContext";
 import { sendMessage, getAssistantStatus } from "@/services/chatApi";
 import { uid } from "@/utils/helpers";
-import type { ChatMessage as ChatMessageType } from "@/types";
+import type { ChatMessage as ChatMessageType, ConversationTurn } from "@/types";
 
 // ─── Suggested prompts shown in the empty state ───────────────────────────────
 
@@ -23,6 +25,9 @@ const SUGGESTIONS = [
   "Give me a project overview",
 ];
 
+// Max conversation history turns sent to backend (keep context window small)
+const MAX_HISTORY_TURNS = 10;
+
 export function AssistantPanel() {
   const {
     state,
@@ -31,6 +36,7 @@ export function AssistantPanel() {
     setAssistantThinking,
     setGroqConfigured,
     addActivity,
+    setPendingAssistantInput,
   } = useApp();
   const { conversation, assistantThinking, groqConfigured } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -70,13 +76,21 @@ export function AssistantPanel() {
         type: "info",
       });
 
+      // Phase 4: build context to send alongside the message
+      const recentHistory: ConversationTurn[] = state.conversation
+        .slice(-MAX_HISTORY_TURNS)
+        .map((msg) => ({ role: msg.role, content: msg.content }));
+
       try {
-        const result = await sendMessage(text);
+        const result = await sendMessage(text, {
+          selected_file: state.selectedFile?.path ?? undefined,
+          conversation_history: recentHistory,
+        });
 
         addActivity({
           id: uid(),
           timestamp: new Date(),
-          message: `Intent detected: ${result.intent}${result.target_file ? ` → ${result.target_file}` : ""}`,
+          message: `Intent detected: ${result.intent}${result.target_file ? ` → ${result.target_file}` : ""}${result.context_source !== "none" ? ` (context: ${result.context_source})` : ""}`,
           type: "info",
         });
 
@@ -98,6 +112,8 @@ export function AssistantPanel() {
           target_file: result.target_file,
           is_error: result.error,
           candidates: result.candidates,
+          // Phase 4: store follow-up suggestions in the message
+          follow_up_suggestions: result.follow_up_suggestions,
         };
         addMessage(assistantMsg);
       } catch (err) {
@@ -120,8 +136,19 @@ export function AssistantPanel() {
         setAssistantThinking(false);
       }
     },
-    [addMessage, setAssistantThinking, addActivity]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addMessage, setAssistantThinking, addActivity, state.selectedFile, state.conversation]
   );
+
+  // ── Phase 4: Watch pendingAssistantInput (set by "Explain This" button) ──
+  useEffect(() => {
+    if (state.pendingAssistantInput) {
+      const text = state.pendingAssistantInput;
+      setPendingAssistantInput(null);
+      void handleSend(text);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pendingAssistantInput]);
 
   function handleSuggestion(text: string) {
     void handleSend(text);
@@ -186,7 +213,7 @@ export function AssistantPanel() {
               title="AI Assistant ready"
               description="Ask anything about your project files."
             />
-            {/* Suggestion chips */}
+            {/* Static suggestion chips (empty state) */}
             <div className="space-y-1.5">
               <p className="text-[10px] text-text-muted uppercase tracking-widest px-1">
                 Try asking:
@@ -211,7 +238,12 @@ export function AssistantPanel() {
         ) : (
           <>
             {conversation.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                onSuggestionClick={handleSuggestion}
+                disabled={assistantThinking}
+              />
             ))}
             {/* Thinking indicator */}
             {assistantThinking && (

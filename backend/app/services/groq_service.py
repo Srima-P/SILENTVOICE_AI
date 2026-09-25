@@ -306,6 +306,121 @@ Notable observations about how the project is organized.
         return await self.complete(system, user, max_tokens=1200)
 
 
+    async def find_dependents(
+        self,
+        file_path: str,
+        dependents: list[str],
+        language: str,
+    ) -> str:
+        """Generate a prose explanation of which files depend on the given file."""
+        system = (
+            "You are a software architect explaining project structure to a developer. "
+            "Use Markdown. Be concise and precise."
+        )
+        dep_lines = "\n".join(f"  - {d}" for d in dependents) if dependents else "  (none detected)"
+        user = f"""Which files depend on `{file_path}` ({language})?
+
+**Files that import or depend on `{file_path}`:**
+{dep_lines}
+
+Provide:
+
+## Files That Depend On `{file_path}`
+List each dependent file and briefly explain why it might depend on this module.
+
+## Impact Analysis
+What would break or need updating if `{file_path}` were changed?
+
+## Observations
+Any notable patterns (e.g., widely used utility, single entry point, etc.)?
+"""
+        return await self.complete(system, user, max_tokens=800)
+
+    async def explain_relationship(
+        self,
+        file_a: str,
+        file_b: str,
+        language: str,
+        content_a: str,
+        content_b: str,
+        deps_a: list[str],
+        deps_b: list[str],
+    ) -> str:
+        """Explain how two files relate and interact with each other."""
+        system = (
+            "You are a software architect explaining how two modules relate to a developer. "
+            "Use Markdown. Be clear and specific."
+        )
+        user = f"""Explain the relationship between `{file_a}` and `{file_b}` ({language}).
+
+**`{file_a}` dependencies (project files it imports):** {', '.join(deps_a) if deps_a else 'none'}
+**`{file_b}` dependencies (project files it imports):** {', '.join(deps_b) if deps_b else 'none'}
+
+**Source of `{file_a}`:**
+```{language}
+{content_a[:3000]}{'...[truncated]' if len(content_a) > 3000 else ''}
+```
+
+**Source of `{file_b}`:**
+```{language}
+{content_b[:3000]}{'...[truncated]' if len(content_b) > 3000 else ''}
+```
+
+Provide:
+
+## Relationship Summary
+One paragraph: how do these files relate to each other?
+
+## Data Flow
+How does data or control flow between them?
+
+## Direct Dependencies
+Does either file directly import the other? Explain the direction.
+
+## Shared Concerns
+Do they share state, types, utilities, or context?
+
+## Coupling Assessment
+Are they tightly or loosely coupled? Is this appropriate?
+"""
+        return await self.complete(system, user, max_tokens=1000)
+
+    async def show_related(
+        self,
+        file_path: str,
+        language: str,
+        forward_deps: list[str],
+        reverse_deps: list[str],
+    ) -> str:
+        """Summarise the neighbourhood of files related to the given file."""
+        system = (
+            "You are a software architect giving a developer a map of related code. "
+            "Use Markdown. Be concise."
+        )
+        fwd = "\n".join(f"  - {d}" for d in forward_deps) if forward_deps else "  (none)"
+        rev = "\n".join(f"  - {d}" for d in reverse_deps) if reverse_deps else "  (none)"
+        user = f"""Show the related files for `{file_path}` ({language}).
+
+**Files `{file_path}` imports (forward dependencies):**
+{fwd}
+
+**Files that import `{file_path}` (reverse dependencies):**
+{rev}
+
+Provide:
+
+## Files `{file_path}` Depends On
+Brief description of each import and why it's needed.
+
+## Files That Depend On `{file_path}`
+Brief description of each file that uses this module.
+
+## Role in the Project
+Based on the above, what role does `{file_path}` play in the overall architecture?
+"""
+        return await self.complete(system, user, max_tokens=800)
+
+
 # ── Module-level singleton (re-created each request so key changes are picked up) ──
 def get_groq_service() -> GroqService:
     return GroqService()

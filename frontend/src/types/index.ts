@@ -92,10 +92,20 @@ export interface ProjectScanState {
   error: string | null;
 }
 
-// ─── Phase 3: Assistant / Chat API ────────────────────────────────────────────
+// ─── Phase 3/4: Assistant / Chat API ──────────────────────────────────────────
+
+/** A single turn sent as part of conversation history. Phase 4. */
+export interface ConversationTurn {
+  role: string;
+  content: string;
+}
 
 export interface ChatRequest {
   message: string;
+  /** Phase 4: currently selected file in Project Explorer */
+  selected_file?: string;
+  /** Phase 4: recent conversation turns for memory/context */
+  conversation_history?: ConversationTurn[];
 }
 
 export interface ChatResponse {
@@ -105,6 +115,10 @@ export interface ChatResponse {
   error: boolean;
   candidates: string[];
   groq_used: boolean;
+  /** Phase 4: suggested follow-up prompts */
+  follow_up_suggestions: string[];
+  /** Phase 4: how the active file was resolved */
+  context_source: string;
 }
 
 export interface AssistantStatus {
@@ -126,6 +140,8 @@ export interface ChatMessage {
   target_file?: string | null;
   is_error?: boolean;
   candidates?: string[];
+  /** Phase 4: follow-up suggestion chips */
+  follow_up_suggestions?: string[];
 }
 
 export type VoiceState = "idle" | "listening" | "processing";
@@ -181,4 +197,6 @@ export interface AppState {
   activity: ActivityEntry[];
   activeWorkflowTab: WorkflowTab;
   accessibility: AccessibilityPreferences;
+  /** Phase 4: a pending message to send to the assistant (e.g. from "Explain This" button) */
+  pendingAssistantInput: string | null;
 }
