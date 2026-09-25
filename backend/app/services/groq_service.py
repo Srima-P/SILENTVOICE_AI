@@ -103,9 +103,6 @@ class GroqService:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 response = await client.post(GROQ_API_URL, json=payload, headers=headers)
 
-                print("MODEL SENT:", self._model)
-                print("STATUS:", response.status_code)
-                print("BODY:", response.text)
         except httpx.TimeoutException:
             raise GroqError("Groq request timed out. Please try again.")
         except httpx.RequestError as exc:

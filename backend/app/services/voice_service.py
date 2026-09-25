@@ -175,7 +175,6 @@ class VoiceService:
 
         try:
             text = response.json().get("text", "").strip()
-            print("TRANSCRIPT:", text)
         except Exception as exc:
             raise VoiceError(f"Unexpected response format from Groq: {exc}") from exc
 
