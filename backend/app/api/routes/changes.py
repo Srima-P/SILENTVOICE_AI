@@ -64,7 +64,8 @@ async def propose(body: ModifyRequest) -> ProposeChangeResponse:
       3. HTTP error codes map to domain exceptions.
 
     Error codes:
-      400 — protected file, path traversal escape, or validation error
+      400 — path traversal escape or other validation error
+      403 — target matches a protected file pattern
       404 — file not found
       413 — file exceeds max_file_size_for_ai
       422 — Pydantic validation failure (bad file_path or missing fields)
@@ -73,7 +74,10 @@ async def propose(body: ModifyRequest) -> ProposeChangeResponse:
     try:
         svc = CodeModificationService()
         return await svc.propose(body.file_path, body.instruction)
-    except (ProtectedFileError, ValueError) as exc:
+    except ProtectedFileError as exc:
+        logger.warning("Propose rejected (403): %s", exc)
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
         logger.warning("Propose rejected (400): %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
     except FileNotFoundError as exc:

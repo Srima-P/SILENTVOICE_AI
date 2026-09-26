@@ -188,6 +188,21 @@ class PendingChangeStore:
         """
         return self._records.get(proposal_id)
 
+    def contains(self, proposal_id: str) -> bool:
+        """
+        Return True if a record with *proposal_id* is currently held in the store.
+
+        Equivalent to ``get(proposal_id) is not None`` but communicates intent
+        more clearly in callers that only need to check membership.
+
+        Args:
+            proposal_id: UUID4 string of the proposal to look up.
+
+        Returns:
+            True if present; False otherwise.  Never raises.
+        """
+        return proposal_id in self._records
+
     def __len__(self) -> int:
         """Return the current number of stored proposals."""
         return len(self._records)

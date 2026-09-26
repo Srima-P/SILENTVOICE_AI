@@ -59,6 +59,7 @@ const INITIAL_STATE: AppState = {
   activeWorkflowTab: "changes",
   accessibility: DEFAULT_ACCESSIBILITY,
   pendingAssistantInput: null,
+  pendingProposalRequest: null,
 };
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -79,6 +80,13 @@ type Action =
   | { type: "SET_ACCESSIBILITY"; prefs: Partial<AccessibilityPreferences> }
   | { type: "ADD_ACTIVITY"; entry: ActivityEntry }
   | { type: "ADD_PROPOSED_CHANGE"; change: ProposedChange }
+  // Phase 6
+  | { type: "UPDATE_PENDING_CHANGE"; id: string; patch: Partial<ProposedChange> }
+  | { type: "REMOVE_PENDING_CHANGE"; id: string }
+  | {
+      type: "SET_PENDING_PROPOSAL_REQUEST";
+      request: { filePath: string; instruction: string } | null;
+    }
   // Phase 4
   | { type: "SET_PENDING_INPUT"; text: string | null };
 
@@ -164,6 +172,24 @@ function appReducer(state: AppState, action: Action): AppState {
         proposedChanges: [...state.proposedChanges, action.change],
       };
 
+    // Phase 6
+    case "UPDATE_PENDING_CHANGE":
+      return {
+        ...state,
+        proposedChanges: state.proposedChanges.map((c) =>
+          c.id === action.id ? { ...c, ...action.patch } : c
+        ),
+      };
+
+    case "REMOVE_PENDING_CHANGE":
+      return {
+        ...state,
+        proposedChanges: state.proposedChanges.filter((c) => c.id !== action.id),
+      };
+
+    case "SET_PENDING_PROPOSAL_REQUEST":
+      return { ...state, pendingProposalRequest: action.request };
+
     // Phase 4
     case "SET_PENDING_INPUT":
       return { ...state, pendingAssistantInput: action.text };
@@ -191,6 +217,13 @@ interface AppContextValue {
   setWorkflowTab: (tab: WorkflowTab) => void;
   setAccessibility: (prefs: Partial<AccessibilityPreferences>) => void;
   addActivity: (entry: ActivityEntry) => void;
+  addProposedChange: (change: ProposedChange) => void;
+  updatePendingChange: (id: string, patch: Partial<ProposedChange>) => void;
+  removePendingChange: (id: string) => void;
+  /** Phase 6: set or clear the pending proposal request from a MODIFY_CODE intent. */
+  setPendingProposalRequest: (
+    request: { filePath: string; instruction: string } | null
+  ) => void;
   /** Phase 4: signal the AssistantPanel to send a message (e.g. from Explain This) */
   setPendingAssistantInput: (text: string | null) => void;
 }
@@ -262,6 +295,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (entry: ActivityEntry) => dispatch({ type: "ADD_ACTIVITY", entry }),
     []
   );
+  const addProposedChange = useCallback(
+    (change: ProposedChange) => dispatch({ type: "ADD_PROPOSED_CHANGE", change }),
+    []
+  );
+  const updatePendingChange = useCallback(
+    (id: string, patch: Partial<ProposedChange>) =>
+      dispatch({ type: "UPDATE_PENDING_CHANGE", id, patch }),
+    []
+  );
+  const removePendingChange = useCallback(
+    (id: string) => dispatch({ type: "REMOVE_PENDING_CHANGE", id }),
+    []
+  );
+  const setPendingProposalRequest = useCallback(
+    (request: { filePath: string; instruction: string } | null) =>
+      dispatch({ type: "SET_PENDING_PROPOSAL_REQUEST", request }),
+    []
+  );
   const setPendingAssistantInput = useCallback(
     (text: string | null) => dispatch({ type: "SET_PENDING_INPUT", text }),
     []
@@ -285,6 +336,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setWorkflowTab,
         setAccessibility,
         addActivity,
+        addProposedChange,
+        updatePendingChange,
+        removePendingChange,
+        setPendingProposalRequest,
         setPendingAssistantInput,
       }}
     >

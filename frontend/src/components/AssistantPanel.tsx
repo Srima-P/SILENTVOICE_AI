@@ -3,6 +3,8 @@
  * Phase 3: connects to POST /api/assistant/chat via chatApi.ts.
  * Phase 4: sends selected_file + conversation_history; pendingAssistantInput.
  * Phase 5: onboarding quick actions in empty state.
+ * Phase 6: dispatches setPendingProposalRequest for modify_code intent
+ *           instead of calling the changes API directly.
  */
 
 import { useRef, useEffect, useCallback } from "react";
@@ -45,6 +47,7 @@ export function AssistantPanel() {
     setGroqConfigured,
     addActivity,
     setPendingAssistantInput,
+    setPendingProposalRequest,
   } = useApp();
   const { conversation, assistantThinking, groqConfigured } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -108,6 +111,14 @@ export function AssistantPanel() {
             timestamp: new Date(),
             message: "Groq response received.",
             type: "success",
+          });
+        }
+
+        // Phase 6: for modify_code intent, route to ChangesPanel via context
+        if (result.intent === "modify_code" && result.target_file) {
+          setPendingProposalRequest({
+            filePath: result.target_file,
+            instruction: text,
           });
         }
 

@@ -33,6 +33,8 @@ const INTENT_LABELS: Record<string, string> = {
   setup_guidance: "Setup guide",
   beginner_tasks: "Beginner tasks",
   unsupported: "Unknown intent",
+  // Phase 6
+  modify_code: "Modify Code",
 };
 
 export function ChatMessage({ message, onSuggestionClick, disabled }: Props) {

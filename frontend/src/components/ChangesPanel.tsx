@@ -1,12 +1,18 @@
 /**
  * ChangesPanel — bottom panel showing workflow tabs.
  * Phase 2: Activity tab shows real events; Diff tab shows dependency graph.
+ * Phase 6: Changes tab integrates usePendingChanges — renders pending proposals,
+ *           DiffViewer, Approve/Reject buttons, and watches pendingProposalRequest
+ *           to trigger propose() automatically.
  */
 
-import { GitBranch, FileCode, Activity, Clock } from "lucide-react";
+import { useEffect } from "react";
+import { GitBranch, FileCode, Activity, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { EmptyState } from "./EmptyState";
 import { DependencyGraph } from "./DependencyGraph";
+import { DiffViewer } from "./DiffViewer";
 import { useApp } from "@/contexts/AppContext";
+import { usePendingChanges } from "@/hooks/usePendingChanges";
 import { formatTime } from "@/utils/helpers";
 import type { WorkflowTab } from "@/types";
 
@@ -23,9 +29,31 @@ const STATUS_COLORS: Record<string, string> = {
   success: "text-status-ok",
 };
 
+const CHANGE_STATUS_BADGE: Record<string, string> = {
+  pending:  "bg-status-warn/15 text-status-warn border-status-warn/30",
+  applied:  "bg-status-ok/15 text-status-ok border-status-ok/30",
+  rejected: "bg-surface-3 text-text-muted border-border",
+  failed:   "bg-status-error/15 text-status-error border-status-error/30",
+  approved: "bg-status-info/15 text-status-info border-status-info/30",
+  invalid:  "bg-status-error/15 text-status-error border-status-error/30",
+  stale:    "bg-surface-3 text-text-muted border-border",
+};
+
 export function ChangesPanel() {
   const { state, setWorkflowTab } = useApp();
+  const { propose, approve, reject, isProposing, isApplying } = usePendingChanges();
   const active = state.activeWorkflowTab;
+
+  // ── Phase 6: Watch pendingProposalRequest and call propose() ────────────────
+  useEffect(() => {
+    if (state.pendingProposalRequest) {
+      const { filePath, instruction } = state.pendingProposalRequest;
+      // Switch to the Changes tab so the user sees the proposal arrive
+      setWorkflowTab("changes");
+      void propose(filePath, instruction);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pendingProposalRequest]);
 
   return (
     <section
@@ -54,6 +82,12 @@ export function ChangesPanel() {
           >
             <span aria-hidden="true">{tab.icon}</span>
             {tab.label}
+            {/* Badge for pending change count */}
+            {tab.id === "changes" && state.proposedChanges.filter((c) => c.status === "pending").length > 0 && (
+              <span className="ml-0.5 px-1 py-0 rounded text-[9px] font-bold bg-status-warn/20 text-status-warn">
+                {state.proposedChanges.filter((c) => c.status === "pending").length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -66,10 +100,88 @@ export function ChangesPanel() {
         hidden={active !== "changes"}
         className="flex-1 overflow-y-auto"
       >
-        <EmptyState
-          title="No proposed changes yet"
-          description="When SilentVoice AI suggests code modifications they will appear here for review and approval."
-        />
+        {/* Proposing spinner */}
+        {isProposing && (
+          <div className="flex items-center gap-2 px-3 py-2 text-xs text-text-muted border-b border-border">
+            <Loader2 size={11} className="animate-spin flex-shrink-0" aria-hidden="true" />
+            Generating proposal…
+          </div>
+        )}
+
+        {state.proposedChanges.length === 0 && !isProposing ? (
+          <EmptyState
+            title="No proposed changes yet"
+            description="When SilentVoice AI suggests code modifications they will appear here for review and approval."
+          />
+        ) : (
+          <ul className="divide-y divide-border/50">
+            {state.proposedChanges.map((change) => (
+              <li key={change.id} className="py-2 px-3 space-y-1.5">
+                {/* Header row */}
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className={[
+                        "flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wide",
+                        CHANGE_STATUS_BADGE[change.status] ?? "bg-surface-3 text-text-muted border-border",
+                      ].join(" ")}
+                    >
+                      {change.status}
+                    </span>
+                    <span
+                      className="font-mono text-[10px] text-text-muted truncate max-w-[160px]"
+                      title={change.filePath}
+                    >
+                      {change.filePath.split("/").pop()}
+                    </span>
+                  </div>
+
+                  {/* Approve / Reject — only for pending proposals */}
+                  {change.status === "pending" && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void approve(change.id)}
+                        disabled={isApplying}
+                        aria-label={`Approve change for ${change.filePath}`}
+                        title="Approve"
+                        className={[
+                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border transition-colors",
+                          "border-status-ok/40 text-status-ok hover:bg-status-ok/10",
+                          isApplying ? "opacity-40 cursor-not-allowed" : "",
+                        ].join(" ")}
+                      >
+                        <CheckCircle size={10} aria-hidden="true" />
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void reject(change.id)}
+                        disabled={isApplying}
+                        aria-label={`Reject change for ${change.filePath}`}
+                        title="Reject"
+                        className={[
+                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border transition-colors",
+                          "border-status-error/40 text-status-error hover:bg-status-error/10",
+                          isApplying ? "opacity-40 cursor-not-allowed" : "",
+                        ].join(" ")}
+                      >
+                        <XCircle size={10} aria-hidden="true" />
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                <p className="text-[10px] text-text-secondary leading-snug">{change.description}</p>
+
+                {/* Diff preview */}
+                <DiffViewer diff={change.diff} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Dependencies tab (was Diff) */}

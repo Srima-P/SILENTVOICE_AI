@@ -105,17 +105,21 @@ _INTENT_PATTERNS: list[tuple[re.Pattern[str], Intent]] = [
     # "refactor", "edit" are not swallowed by the generic "explain" pattern.
     (re.compile(
         r"\b("
-        # Verb + code noun directly (e.g. "fix the bug", "update the code")
-        r"(modify|change|update|edit|refactor|fix|add|remove|rename|replace|rewrite)\s+(the\s+)?"
-        r"(file|code|function|class|method|variable|import|comment|docstring|type\s+hint|logic|error|bug|test)"
+        # Verb + code noun directly (e.g. "fix the bug", "update the code", "add type hints")
+        # Plural forms (comments, imports, type hints, tests, etc.) are handled by the
+        # optional 's?' and the explicit 'type\s+hints?' sub-pattern.
+        r"(modify|change|update|edit|refactor|fix|add|remove|rename|replace|rewrite)\s+(the\s+|an?\s+)?"
+        r"(files?|code|functions?|class(es)?|methods?|variables?|imports?|comments?|docstrings?"
+        r"|type\s+hints?|logics?|errors?|bugs?|tests?)"
         # High-signal action verbs alone (e.g. "Modify Login.jsx", "Refactor App.jsx")
         r"|(modify|refactor|rewrite|edit|update)\b"
-        # "add a function/method/class/..." (any object follows)
-        r"|add\s+(a\s+)?(function|method|class|import|parameter|argument|type\s+hint|docstring|comment|error\s+handling|return\s+type)"
-        # "remove unused imports / dead code / ..." (covers "remove unused imports from X")
-        r"|remove\s+(the\s+)?(function|method|class|import|parameter|dead\s+code|unused)"
+        # "add [a/an/some] <noun>" — singular and plural (e.g. "add type hints", "add comments")
+        r"|add\s+(an?\s+|some\s+)?(functions?|methods?|class(es)?|imports?|parameters?|arguments?"
+        r"|type\s+hints?|docstrings?|comments?|error\s+handling|return\s+types?|logging|validation)"
+        # "remove [the] <noun>" — singular and plural
+        r"|remove\s+(the\s+)?(functions?|methods?|class(es)?|imports?|parameters?|dead\s+code|unused)"
         # "fix the bug/error/..."
-        r"|fix\s+(the\s+)?(bug|error|issue|typo|lint|type\s+error|import)"
+        r"|fix\s+(the\s+)?(bugs?|errors?|issues?|typos?|lint|type\s+errors?|imports?)"
         r"|make\s+\S+\s+(async|typed|simpler|faster|safer|more\s+readable)"
         r"|convert\s+(to|from)\s+\w+"
         r"|extract\s+(a\s+)?(function|method|class|constant)"

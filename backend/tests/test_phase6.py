@@ -716,17 +716,23 @@ def test_api_diff_unknown_id_returns_404() -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.parametrize("file_path,expected_status", [
-    # Test 38a — .env file
-    (".env", 400),
-    # Test 38b — SSH private key
-    ("id_rsa", 400),
-    # Test 38c — .git/config contains ".." in the sense of protected dir
-    #            The traversal ".git/" is caught by the Pydantic validator → 422,
-    #            OR caught by _check_protected → 400; either is correct rejection.
-    (".git/config", 422),  # Pydantic _TRAVERSAL_RE catches the control chars / path; 422
+    # Test 38a — .env file: ProtectedFileError → HTTP 403
+    (".env", 403),
+    # Test 38b — SSH private key: ProtectedFileError → HTTP 403
+    ("id_rsa", 403),
+    # Test 38c — .git/config: caught by _check_protected (protected dir) → HTTP 403
+    #            (Pydantic does not block .git/config because it contains no traversal
+    #             sequences, null bytes, or metacharacters.)
+    (".git/config", 403),
 ])
 def test_security_protected_files_blocked(file_path: str, expected_status: int) -> None:
-    """Tests 38a–38c: Protected / dangerous file_path values are rejected."""
+    """Tests 38a–38c: Protected / dangerous file_path values are rejected.
+
+    ProtectedFileError is raised by _check_protected() inside
+    CodeModificationService.propose() and mapped to HTTP 403 by the /propose
+    route handler.  Any status code in (400, 403, 422, 404) is a valid
+    rejection — the important thing is that the request never succeeds.
+    """
     import warnings; warnings.filterwarnings("ignore")
     from fastapi.testclient import TestClient
     from app.main import app
@@ -736,8 +742,9 @@ def test_security_protected_files_blocked(file_path: str, expected_status: int) 
         "/api/changes/propose",
         json={"file_path": file_path, "instruction": "Read or modify"},
     )
-    # Allow either the expected status OR the other valid rejection (400 or 422)
-    assert r.status_code in (400, 422, 404), (
+    # Accept any rejection status: 400 (ValueError), 403 (ProtectedFileError),
+    # 404 (not found after protection check passes), 422 (Pydantic).
+    assert r.status_code in (400, 403, 404, 422), (
         f"Expected a rejection for '{file_path}', got {r.status_code}: {r.text}"
     )
 
